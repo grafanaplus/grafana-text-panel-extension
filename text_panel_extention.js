@@ -92,9 +92,10 @@ function getTemplateVar(varName){
           return tVar;
         } 
        }        
-    return null;
+  return null;
 }
 
+/*
 //work with request names 
 function getRequestNames(){
     var res = ['allRequests'];
@@ -104,10 +105,9 @@ function getRequestNames(){
     }
     return  res;
 }
-
+*/
 //get selected test types 
 function getTestType(){
-  
   var testTypeObj = getTemplateVar('test_type');
   var currentOption = testTypeObj.current.value[0];
   var res = [];
@@ -121,8 +121,7 @@ function getTestType(){
     for(var i = 0; i < values.length; i++){
         res.push(values[i]);
       }
-   }
-
+  }
   return res;
 }
 
@@ -176,7 +175,7 @@ function appendUserCountValues(arr){
       
     }
     result = result + AND;
-  }
+    }
   return result;
 }
  
@@ -225,7 +224,17 @@ function parseResponse(series){
     }
   }
 }
- 
+
+function getRequestNames(series){
+ if(series != undefined ){
+    let set = new Set();
+     for(var i = 0; i < series.length; i++){
+      set.add(series[i].tags.request_name);
+      }
+    return Array.from(set.values());
+  }
+}
+
 //send queries 
 function getAllMetrics(query){
   $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
@@ -244,14 +253,18 @@ function getAllMetrics(query){
       });
 }
 
-function getOkMetrics(queryOK,queryALL,requestNames){
+function getOkMetrics(queryOK,queryALL){
   $.get(DB_URL, { q: queryOK, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
+
             var series = data.results[0].series
+             console.log(series)
               if(typeof series == 'undefined'){
                 showErrMessage("No datapoints in selected time range. Try to change filter parameters.");
               }else{
+                requestNames = getRequestNames(series);
+                console.log(requestNames)
                 generateTable(requestNames);
                 getAllMetrics(queryALL);
                 parseResponse(series);
@@ -351,23 +364,21 @@ function showErrMessage(errMessage){
   $("#summary").append(message);
 }
 
+
 // main function 
 function onRefresh () {
-
-  emptySummaryTable();
-
   var timeFilter = getTimeFilter();
-  var requestNames = getRequestNames();
+ // var requestNames = getRequestNames();
   var testType = getTestType();
   var simulation  =  getSimulationName();
   var userCount = getUserCount();
-  $('#rn').text(requestNames[0]);
-  $('#tt').text(testType[0]);
-  $('#uc').text(userCount[0]);
-  var queryAll = generateQuery('all',testType, simulation, userCount,timeFilter);
-  var queryOk = generateQuery('ok',testType, simulation, userCount,timeFilter);
-  getOkMetrics(queryOk,queryAll,requestNames);
+
+  queryAll = generateQuery('all',testType, simulation, userCount,timeFilter);
+  queryOk = generateQuery('ok',testType, simulation, userCount,timeFilter);
+  
+  getOkMetrics(queryOk,queryAll);
 }
+
 
 //some global vars
 DB_NAME = "perftest";
@@ -405,8 +416,5 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
 </style>
 
 <div id = "summary"></div>
-<div id = "hidden">
-  <input type="hidden" name="rn" id="rn">
-  <input type="hidden" name="tt" id="tt">
-  <input type="hidden" name="uc" id="uc">
+ <div><input type="hidden" id="requestNames">
 </div>
