@@ -95,17 +95,6 @@ function getTemplateVar(varName){
   return null;
 }
 
-/*
-//work with request names 
-function getRequestNames(){
-    var res = ['allRequests'];
-    var reqNames = getTemplateVar('request_name').options;
-    for (var j = 1; j < reqNames.length; j++) {
-        res.push(reqNames[j].value);
-    }
-    return  res;
-}
-*/
 //get selected test types 
 function getTestType(){
   var testTypeObj = getTemplateVar('test_type');
@@ -145,7 +134,7 @@ function getUserCount(){
       }
    }
   return res;
-}
+  }
 
 //generate query 
 function generateQuery(status, testType, simulation, userCount, timeFilter){
@@ -153,38 +142,35 @@ function generateQuery(status, testType, simulation, userCount, timeFilter){
   var WHERE = ' WHERE '
   var GROUP_BY = ' GROUP BY request_name'
 
-function appendTestTypeValues(arr){
-  var result = ''
-  for (var i = 0; i < arr.length; i++){
-    result += arr[i];
-    if(i+1 < arr.length){
-      result += ',';
-    }   
-  }
-  return result;
- }
-
-function appendUserCountValues(arr){
-    var result = '';
-    if (arr.length > 0){
-    result = ' user_count= \'' + arr[0] + '\' ';
-    if(arr.length > 1){
-      for (var i = 1; i < arr.length; i++){
-        result += (' OR user_count= \'' + arr[i] + '\' ');    
+    function appendTestTypeValues(arr){
+      var result = ''
+      for (var i = 0; i < arr.length; i++){
+        result += arr[i];
+        if(i+1 < arr.length){
+          result += ',';
+        }   
       }
-      
+      return result;
+     }
+
+    function appendUserCountValues(arr){
+        var result = '';
+        if (arr.length > 0){
+          result = ' user_count= \'' + arr[0] + '\' ';
+            if(arr.length > 1){
+              for (var i = 1; i < arr.length; i++){
+                result += (' OR user_count= \'' + arr[i] + '\' ');    
+              }
+          
+          }
+          result = result + AND;
+        }
+        return result;
     }
-    result = result + AND;
-    }
-  return result;
-}
- 
   var query;
   var testTypes = appendTestTypeValues(testType);
   var userCounts = appendUserCountValues(userCount);
   var simulation = ' simulation=\'' + simulation + '\'';
-
- 
   if(status == 'all'){
     query = 'SELECT SUM(count) AS "total", MEAN(count) AS "rps", MIN(min) AS "min", MEDIAN(mean) AS "median", MEAN(mean) AS "average", MAX(max) AS "max", STDDEV(mean) AS "stddev", PERCENTILE(mean,75) AS "perc75", PERCENTILE(mean,95) AS "perc95", PERCENTILE(mean,99) AS "perc99" FROM ' + 
       testTypes + WHERE + simulation + AND + userCounts + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
@@ -257,14 +243,11 @@ function getOkMetrics(queryOK,queryALL){
   $.get(DB_URL, { q: queryOK, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
-
             var series = data.results[0].series
-             console.log(series)
               if(typeof series == 'undefined'){
                 showErrMessage("No datapoints in selected time range. Try to change filter parameters.");
               }else{
                 requestNames = getRequestNames(series);
-                console.log(requestNames)
                 generateTable(requestNames);
                 getAllMetrics(queryALL);
                 parseResponse(series);
@@ -277,7 +260,6 @@ function getOkMetrics(queryOK,queryALL){
 
 function countKOMetrics(){
   var res = $('[id$="_ok"]');
-   
   for (var i = 0; i < res.length; i++){
     var id = res[i].id;
     var request_name = id.substring(0, id.length -2);
@@ -312,7 +294,6 @@ function generateTable(requestNames){
     $('#summary-table-body tr').removeClass('selected');
     $(this).addClass('selected');
   })
-
 }
 
 function generateTableHead(){
@@ -363,7 +344,6 @@ function showErrMessage(errMessage){
   message.text(errMessage)
   $("#summary").append(message);
 }
-
 
 // main function 
 function onRefresh () {
@@ -416,5 +396,3 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
 </style>
 
 <div id = "summary"></div>
- <div><input type="hidden" id="requestNames">
-</div>
