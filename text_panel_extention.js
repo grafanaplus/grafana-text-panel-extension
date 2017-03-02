@@ -57,7 +57,7 @@ function formatTime(time){
 function getFromTime(timeObj){
   var from;
   if(typeof timeObj.from == "string"){
-   from = timeObj.from;
+    from = timeObj.from;
   }else{
     from = timeObj.from._d.getTime().toString();
   }
@@ -94,45 +94,38 @@ function getTemplateVar(varName){
        }        
   return null;
 }
-
-//get selected test types 
-function getTestType(){
-  var testTypeObj = getTemplateVar('test_type');
-  var currentOption = testTypeObj.current.value[0];
-  var res = [];
-  if(currentOption == '$__all'){
-    var options = testTypeObj.options;
-    for(var i = 1; i < options.length; i++){
-      res.push(options[i].text);
-    }
-  }else{ 
-    var values = testTypeObj.current.value;
-    for(var i = 0; i < values.length; i++){
-        res.push(values[i]);
-      }
-  }
-  return res;
-}
-
 //get selected simulation
 function getSimulationName (){
   var res = getTemplateVar('simulation').current.value;
   return res;
 }
-
+//get selected test types 
+function getTestType(){
+  var testTypeObj = getTemplateVar('test_type');
+  var res = [];
+  var currentOption = (testTypeObj.current.value instanceof Array) ? testTypeObj.current.value[0] : testTypeObj.current.value;
+  if(currentOption == '$__all'){
+      var options = testTypeObj.options;
+      for(var i = 1; i < options.length; i++){res.push(options[i].text);}
+  }else if(testTypeObj.current.value instanceof Array){
+      var values = testTypeObj.current.value;
+      for(var i = 0; i < values.length; i++){res.push(values[i]);}
+  }else{res.push(currentOption);}
+ 
+  return res;
+}
 //get user count
 function getUserCount(){
   var userCountObj = getTemplateVar('user_count');
-  var currentOption = userCountObj.current.value[0];
   var res = [];
+  var currentOption = (userCountObj.current.value instanceof Array) ? userCountObj.current.value[0] : userCountObj.current.value;
   if(currentOption == '$__all'){
     return res;
-  }else{ 
+  }else if(userCountObj.current.value instanceof Array){ 
     var values = userCountObj.current.value;
-    for(var i = 0; i < values.length; i++){
-        res.push(values[i]);
-      }
-   }
+    for(var i = 0; i < values.length; i++){res.push(values[i]);}
+  }else{res.push(currentOption);}
+  
   return res;
   }
 
@@ -194,20 +187,43 @@ function parseResponse(series){
           column = columns[j]
           if(value != null){
             var cellId = requestName + '_' + column;
-            if (column == 'rps'){
-              value = parseFloat(value).toFixed(2)
-            }else if(TABLE_TIME_EPOCH == 's'){
-                if (column != 'total' & column != 'ok'){
-                    value = parseFloat(value/1000).toFixed(2)
-                }
-            }else  {
-              value = parseInt(value);
-            }
-
-            $('#' + cellId).text(value);
+            var cell = $('#' + cellId)
+              if (column == 'rps'){
+                value = parseFloat(value).toFixed(2)
+              }else if(TABLE_TIME_EPOCH == 's'){
+                  if (column != 'total' & column != 'ok'){
+                      assignRTCellStyle(cell,value);
+                      value = parseFloat(value/1000).toFixed(2);
+                  }
+              }else  {
+                value = parseInt(value);
+              }
+              cell.text(value);
           }
         }
     }
+  }
+}
+
+function assignRTCellStyle(cell,value){
+  if(value > HIGHER_RT_TRESHOLD){
+      cell.attr("id","red");
+  }else if(value < LOWER_RT_TRESHOLD){
+      cell.attr("id","green");
+  }else{
+      cell.attr("id","yellow");
+  }
+}
+function assignErrorCellStyle(cellKO,cellKOPerc,value){
+  if(value == 0){
+      cellKOPerc.attr("id","green");
+      cellKO.attr("id","green");
+  }else if(value >= ERROR_PERC_TRESHOLD){
+      cellKOPerc.attr("id","red");
+      cellKO.attr("id","red");
+  }else{
+      cellKOPerc.attr("id","yellow");
+      cellKO.attr("id","yellow");
   }
 }
 
@@ -263,6 +279,8 @@ function countKOMetrics(){
   for (var i = 0; i < res.length; i++){
     var id = res[i].id;
     var request_name = id.substring(0, id.length -2);
+    var koPercCell = $('#' + request_name + 'ko_perc')
+    var koCell = $('#' + request_name + 'ko')
     var okValue = parseInt(res[i].textContent);
     var totalValue = $('#' + request_name + 'total')[0].textContent;
     var koValue = totalValue - okValue;
@@ -270,9 +288,9 @@ function countKOMetrics(){
     if(koValue > 0){
       kopercValue = ((100 * koValue) / totalValue).toFixed(2);
     }
-
-    $('#' + request_name + 'ko_perc').text(kopercValue);
-    $('#' + request_name + 'ko').text(koValue);
+    assignErrorCellStyle(koPercCell,koCell,kopercValue);
+    koPercCell.text(kopercValue);
+    koCell.text(koValue);
   }
 }
 
@@ -352,7 +370,6 @@ function onRefresh () {
   var testType = getTestType();
   var simulation  =  getSimulationName();
   var userCount = getUserCount();
-
   queryAll = generateQuery('all',testType, simulation, userCount,timeFilter);
   queryOk = generateQuery('ok',testType, simulation, userCount,timeFilter);
   
@@ -366,6 +383,13 @@ EPOCH = "ms";
 DB_URL = "http://10.192.122.105:7777/query";
 CALCULATIONS = ["request", "total", "ok", "ko", "ko_perc","rps", "min", "median", "perc75", "perc95", "perc99", "max", "average", "stddev"];
 TABLE_TIME_EPOCH = 's'; //s for seconds, any other value for milliseconds
+
+//threshold values
+
+LOWER_RT_TRESHOLD = 2000
+HIGHER_RT_TRESHOLD = 3000
+ERROR_PERC_TRESHOLD = 1
+
 window.onload = onRefresh();
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onRefresh()});
  
@@ -393,6 +417,17 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
     #hidden {
       display: none;
     }
+    #red{
+      background-color:#f64a4a; //red
+    }
+    #yellow{
+      background-color:#e9893a; // yellow
+    }
+    #green{
+      background-color:#37ad32; //green
+    }
 </style>
 
 <div id = "summary"></div>
+
+
