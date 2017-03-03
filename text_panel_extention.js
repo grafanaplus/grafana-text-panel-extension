@@ -94,10 +94,14 @@ function getTemplateVar(varName){
        }        
   return null;
 }
+
+//get selected request status
+function getRequestStatus (){
+  return getTemplateVar('req_status').current.value;
+}
 //get selected simulation
 function getSimulationName (){
-  var res = getTemplateVar('simulation').current.value;
-  return res;
+  return getTemplateVar('simulation').current.value;
 }
 //get selected test types 
 function getTestType(){
@@ -130,10 +134,17 @@ function getUserCount(){
   }
 
 //generate query 
-function generateQuery(status, testType, simulation, userCount, timeFilter){
+function generateQuery(queryType){
   var AND  = ' AND '
   var WHERE = ' WHERE '
   var GROUP_BY = ' GROUP BY request_name'
+  var query;
+  var timeFilter = getTimeFilter();
+  var requestStatus = getRequestStatus();
+  var testType = getTestType();
+  var simulation  =  getSimulationName();
+  var userCount = getUserCount();
+
 
     function appendTestTypeValues(arr){
       var result = ''
@@ -160,15 +171,18 @@ function generateQuery(status, testType, simulation, userCount, timeFilter){
         }
         return result;
     }
-  var query;
-  var testTypes = appendTestTypeValues(testType);
-  var userCounts = appendUserCountValues(userCount);
-  var simulation = ' simulation=\'' + simulation + '\'';
-  if(status == 'all'){
-    query = 'SELECT SUM(count) AS "total", MEAN(count) AS "rps", MIN(min) AS "min", MEDIAN(mean) AS "median", MEAN(mean) AS "average", MAX(max) AS "max", STDDEV(mean) AS "stddev", PERCENTILE(mean,75) AS "perc75", PERCENTILE(mean,95) AS "perc95", PERCENTILE(mean,99) AS "perc99" FROM ' + 
-      testTypes + WHERE + simulation + AND + userCounts + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
-  }else if(status == 'ok'){
+  
+  testTypes = appendTestTypeValues(testType);
+  userCounts = appendUserCountValues(userCount);
+  simulation = ' simulation=\'' + simulation + '\'';
+  requestStatus = ' status= \'' + requestStatus + '\' '
+  if(queryType == 'total'){
+    query = 'SELECT SUM(count) AS "total" FROM ' + testTypes + WHERE + simulation + AND + userCounts + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
+  }else if(queryType == 'ok'){
     query = 'SELECT SUM(count) AS "ok" FROM ' + testTypes + WHERE + simulation + AND + userCounts + 'status= \'ok\'' + AND + timeFilter + GROUP_BY;
+  }else{//substitute selected request status
+    query = 'SELECT MEAN(count) AS "rps", MIN(min) AS "min", MEDIAN(mean) AS "median", MEAN(mean) AS "average", MAX(max) AS "max", STDDEV(mean) AS "stddev", PERCENTILE(mean,75) AS "perc75", PERCENTILE(mean,95) AS "perc95", PERCENTILE(mean,99) AS "perc99" FROM ' + 
+      testTypes + WHERE + simulation + AND + userCounts + requestStatus + AND +  timeFilter + GROUP_BY;
   }
 
   return query;
@@ -189,11 +203,11 @@ function parseResponse(series){
             var cellId = requestName + '_' + column;
             var cell = $('#' + cellId)
               if (column == 'rps'){
-                value = parseFloat(value).toFixed(2)
+                value = parseFloat(value).toFixed(ROUND_FLOAT_FACTOR)
               }else if(TABLE_TIME_EPOCH == 's'){
                   if (column != 'total' & column != 'ok'){
                       assignRTCellStyle(cell,value);
-                      value = parseFloat(value/1000).toFixed(2);
+                      value = parseFloat(value/1000).toFixed(ROUND_FLOAT_FACTOR);
                   }
               }else  {
                 value = parseInt(value);
@@ -247,7 +261,6 @@ function getAllMetrics(query){
                 showErrMessage("No datapoints in selected time range. Try to change filter parameters.")
               }else{
                 parseResponse(series);
-                countKOMetrics();
               }
           }else{
             showErrMessage("Error occured during quering data. Check your datasource settings.")
@@ -255,7 +268,7 @@ function getAllMetrics(query){
       });
 }
 
-function getOkMetrics(queryOK,queryALL){
+function getOkMetrics(queryOK,queryTotal,queryALL){
   $.get(DB_URL, { q: queryOK, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
@@ -265,8 +278,25 @@ function getOkMetrics(queryOK,queryALL){
               }else{
                 requestNames = getRequestNames(series);
                 generateTable(requestNames);
+                getTotalMetrics(queryTotal,queryALL)
+                parseResponse(series);
+              }
+          }else{
+            showErrMessage("Error occured during quering data. Check your datasource settings.")
+          }
+      });
+}
+function getTotalMetrics(queryTotal,queryALL){
+  $.get(DB_URL, { q: queryTotal, db: DB_NAME, epoch: EPOCH},
+    function(data, status){
+          if(status == 'success'){
+            var series = data.results[0].series
+              if(typeof series == 'undefined'){
+                showErrMessage("No datapoints in selected time range. Try to change filter parameters.");
+              }else{
                 getAllMetrics(queryALL);
                 parseResponse(series);
+                countKOMetrics();
               }
           }else{
             showErrMessage("Error occured during quering data. Check your datasource settings.")
@@ -365,15 +395,12 @@ function showErrMessage(errMessage){
 
 // main function 
 function onRefresh () {
-  var timeFilter = getTimeFilter();
- // var requestNames = getRequestNames();
-  var testType = getTestType();
-  var simulation  =  getSimulationName();
-  var userCount = getUserCount();
-  queryAll = generateQuery('all',testType, simulation, userCount,timeFilter);
-  queryOk = generateQuery('ok',testType, simulation, userCount,timeFilter);
+
+  queryOk = generateQuery('ok');
+  queryTotal = generateQuery('total')
+  queryAll = generateQuery('all');
   
-  getOkMetrics(queryOk,queryAll);
+  getOkMetrics(queryOk,queryTotal,queryAll);
 }
 
 
@@ -389,6 +416,7 @@ TABLE_TIME_EPOCH = 's'; //s for seconds, any other value for milliseconds
 LOWER_RT_TRESHOLD = 2000
 HIGHER_RT_TRESHOLD = 3000
 ERROR_PERC_TRESHOLD = 1
+ROUND_FLOAT_FACTOR = 2
 
 window.onload = onRefresh();
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onRefresh()});
@@ -418,16 +446,14 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
       display: none;
     }
     #red{
-      background-color:#f64a4a; //red
+     color:#f64a4a; //red
     }
     #yellow{
-      background-color:#e9893a; // yellow
+      color:#e9893a; // yellow
     }
     #green{
-      background-color:#37ad32; //green
+      color:#37ad32; //green
     }
 </style>
 
 <div id = "summary"></div>
-
-
