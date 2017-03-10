@@ -158,18 +158,21 @@ function generateQuery(queryType){
      }
 
     function appendUserCountValues(arr){
-        var result = '';
-        if (arr.length > 0){
-          result = ' user_count= \'' + arr[0] + '\' ';
-            if(arr.length > 1){
-              for (var i = 1; i < arr.length; i++){
-                result += (' OR user_count= \'' + arr[i] + '\' ');    
-              }
-          
-          }
-          result = result + AND;
+      var result;
+      if(arr.length ==0){
+        result = '';
+      }else if (arr.length == 1){
+        result = ' user_count= \'' + arr[0] + '\' ';
+        result+=AND;
+      }else{
+        result = ' user_count=~ /^(';
+        for (var i = 0; i < arr.length-1; i++){
+            result += (arr[i] + '|');    
         }
-        return result;
+        result+=(arr[arr.length-1]+ ')/ ');
+        result+=AND;
+      }
+      return result;
     }
   
   testTypes = appendTestTypeValues(testType);
@@ -179,7 +182,7 @@ function generateQuery(queryType){
   if(queryType == 'total'){
     query = 'SELECT SUM(count) AS "total" FROM ' + testTypes + WHERE + simulation + AND + userCounts + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
   }else if(queryType == 'ok'){
-    query = 'SELECT SUM(count) AS "ok" FROM ' + testTypes + WHERE + simulation + AND + userCounts + 'status= \'ok\'' + AND + timeFilter + GROUP_BY;
+    query = 'SELECT SUM(count) AS "ok" FROM ' + testTypes + WHERE + simulation + AND + userCounts +  'status= \'ok\'' + AND + timeFilter + GROUP_BY;
   }else{//substitute selected request status
     query = 'SELECT MEAN(count) AS "rps", MIN(min) AS "min", MEDIAN(mean) AS "median", MEAN(mean) AS "average", MAX(max) AS "max", STDDEV(mean) AS "stddev", PERCENTILE(mean,75) AS "perc75", PERCENTILE(mean,95) AS "perc95", PERCENTILE(mean,99) AS "perc99" FROM ' + 
       testTypes + WHERE + simulation + AND + userCounts + requestStatus + AND +  timeFilter + GROUP_BY;

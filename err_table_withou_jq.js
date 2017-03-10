@@ -1,5 +1,13 @@
 
+ //<script type="text/javascript" language="javascript" src="//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>/
+
+ 
 <script>
+var script = document.createElement( 'script' );
+script.type = 'text/javascript';
+script.src = "//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js";
+$("body").append( script );
+
 function formatTime(time){
   if(time.includes("now")){
     time = time.replace("now","now()");
@@ -132,15 +140,12 @@ function generateErrTableQuery(queryType,errorCode){
   simulation = ' simulation=\'' + simulation + '\'';
 
   if(queryType == 'total'){
-     query = 'SELECT COUNT(error_code) FROM "errors" '  + WHERE + simulation// + AND + userCounts// +  timeFilter;
-    //query = 'SELECT COUNT(error_code) FROM "errors" '  + WHERE + simulation + AND + testTypes + AND + userCounts +  timeFilter; // + GROUP_BY;
+    query = 'SELECT COUNT(error_code) FROM "errors" '  + WHERE + simulation + AND + testTypes + AND + userCounts +  timeFilter; // + GROUP_BY;
   }else if(queryType == 'distinct'){
-     query = 'SELECT DISTINCT(error_code) AS error_code FROM "errors" ' + WHERE + simulation// + AND + userCounts//+ timeFilter;
-    //query = 'SELECT DISTINCT(error_code) AS error_code FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + timeFilter;// + GROUP_BY;
+    query = 'SELECT DISTINCT(error_code) AS error_code FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + timeFilter;// + GROUP_BY;
   }else{//
     errorCode = '"error_code" = \'' + errorCode + '\' ';
-    query = 'SELECT COUNT(error_code) AS error_code, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorCode + AND + simulation// + AND + userCounts// +  timeFilter;
-    //query = 'SELECT COUNT(error_code) AS error_code, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorCode + AND + simulation + AND + testTypes + AND + userCounts +  timeFilter;// + GROUP_BY;
+   query = 'SELECT COUNT(error_code) AS error_code, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorCode + AND + simulation + AND + testTypes + AND + userCounts +  timeFilter;// + GROUP_BY;
   }
 
   return query;
@@ -148,7 +153,6 @@ function generateErrTableQuery(queryType,errorCode){
 
 //requests to DB
 function getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery){
-
     $.get(DB_URL, { q: totalErrorCountQuery, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
@@ -189,37 +193,42 @@ function getDistinctErrorCodes(distinctErrorCodesQuery,totalErrorCount){
 }
 
 function getErrorDetails(errorCodes,totalErrorCount){
-    console.log('generating table')
     generateErrorTable();
-    for (var i = 0; i < errorCodes.length; i ++){
-        query = generateErrTableQuery('details',errorCodes[i])
-        console.log('query' + query)
-       // query = 'SELECT COUNT(error_code) AS error_code, FIRST(error_details) AS error_details  FROM "errors" WHERE "error_code" = \'' + errorCodes[i] +'\''
-        $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
-            function(data, status){
-              if(status == 'success'){
-                var series = data.results[0].series;
-                  if(typeof series == 'undefined'){
-                    showErrorTableMessage("Failed to retrieve error details.")
-                  }else{
-                    values = series[0].values[0];
-                    errorCount = values[1];
-                    errorDetails = values[2];
-                    errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
-                    appendRow(errorDetails,errorCount,errorPercentage)
-                  }
-              }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
-        });
-    }
+    // for (var i = 0; i < errorCodes.length; i ++){
+    //     query = generateErrTableQuery('details',errorCodes[i])
+    //     $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
+    //         function(data, status){
+    //           if(status == 'success'){
+    //             var series = data.results[0].series;
+    //               if(typeof series == 'undefined'){
+    //                 showErrorTableMessage("Failed to retrieve error details.")
+    //               }else{
+    //                 values = series[0].values[0];
+    //                 errorCount = values[1];
+    //                 errorDetails = values[2];
+    //                 errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
+    //                 appendRow(errorDetails,errorCount,errorPercentage)
+    //               }
+    //           }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
+    //     });
+    // }
 }
 
 function appendRow(errorDetails,errorCount,errorPercentage){
-    var tRow = $('<tr>');
-    tRow.append($('<td>').text(errorDetails))
-    tRow.append($('<td>').text(errorCount))
-    tRow.append($('<td>').text(errorPercentage))
-    $('#error-table-body').append(tRow)
-    initDataTable()
+  console.log("add row")
+     $('#error-table').DataTable().row.add([errorDetails,errorCount,errorPercentage]).draw()
+}
+ 
+function initDataTable(table){
+   console.log("init " )
+       table.DataTable()
+     // table.DataTable({
+     //        "empty": true,
+     //        "lengthMenu": [[5, 10, 20, -1], [5, 10, 20, "All"]],
+     //        "pagingType": "full_numbers",
+     //        "responsive": true
+     //  });
+ 
 }
 
 function showErrorTableMessage(mess){
@@ -230,38 +239,31 @@ function showErrorTableMessage(mess){
     $("#errors").append(message);
 }
 
-function initDataTable(){
- $('#error-table').DataTable({
-        "pagingType": "full_numbers",
-        "responsive": true
-    }); 
-}
-
+ 
 function emptyErrorTable(){
+  console.log("empty")
+  if($('#error-table').length > 0){
+      if ($.fn.DataTable.isDataTable('#error-table') ) {
+      console.log("destroy")
+      $('#error-table').DataTable().destroy();
+    }
     $("#errors").empty();
+  }
 }
 
 function generateErrorTable(){
-  emptyErrorTable();
+  //emptyErrorTable();
   var table = $('<table>');
   table.attr("id","error-table");
- // table.attr("class","display");
- // table.attr("cellspacing","0");
-  //table.attr("width","100%");
   table.append(generateErrorTableHead());
   table.append(generateErrorTableBody());
   $('#errors').append(table);
-  // table.DataTable({
-  //       "pagingType": "full_numbers",
-  //       "responsive": true
-  //   }); 
-  
-  //initDataTable()
-
+  initDataTable(table)
+  //setTimeout(function(){initDataTable();alert("hi");}, 2000);
 }
 
 function generateErrorTableHead(){
-      var cellNames = ["Error name","Count","Percentage"];
+      var cellNames = ["Error Details","Count","Percentage"];
       tHead = $('<thead>')
       tHead.attr("id","error-table-head");
       tRow = $('<tr>');
@@ -283,7 +285,6 @@ function generateErrorTableBody(){
 }
 
 function onPageRefresh (){
-    emptyErrorTable();
     totalErrorCountQuery = generateErrTableQuery('total')
     distinctErrorCodesQuery = generateErrTableQuery('distinct')
     getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery)
@@ -293,18 +294,41 @@ DB_NAME = "perftest";
 EPOCH = "ms";
 DB_URL = "http://localhost:8086/query";
 
+// $( document ).ready(function (){ 
+// console.log('onload') ;
+// onPageRefresh ();});
 
 
-window.onload = onPageRefresh();
-angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onPageRefresh()});
-//<script type="text/javascript" language="javascript" src="//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>
+// $.getScript("//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js", function(data, textStatus, jqxhr) {
+// console.log(data); //data returned
+// console.log(textStatus); //success
+// console.log(jqxhr.status); //200
+// console.log('Load was performed.');
+// });
+
+$(document).ready(function(){
+ console.log('ready') ;onPageRefresh ();
+});
+
+
+
+//window.onload = function (){ console.log('onload') ;onPageRefresh ();}
+angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){console.log('refresh scope');onPageRefresh ()});
+
 </script>
-
 <style>
-.dataTables_length {
+.dataTables_length{
     display: inline-block;
     padding-bottom: 20px;
     padding-right: 23px;
+}
+input[type="search"] {
+  border-radius: 5px;
+}
+select[name="error-table_length"]{
+    height: 23px;
+    width: 65px;
+    border-radius: 5px;
 }
 #error-table_filter{
   display: inline-block;
@@ -319,6 +343,36 @@ padding-right: 10px;
  display: table;
  margin-left: auto;
  margin-right: auto;
+}
+#err-details{
+  width: 90%;
+  word-break:break-all;
+}
+#err-count{
+  width: 5%;
+  text-align: center;
+}
+#err-perc{
+  width: 5%;
+  text-align: center;
+}
+#error-table{
+  width:100%;
+}
+th {
+  text-align: center;
+}
+td:nth-child(1) {
+  width: 90%;
+  word-break:break-all;
+}
+td:nth-child(2) {
+  width: 5%;
+  text-align: center;
+}
+td:nth-child(3) {
+  width: 5%;
+  text-align: center;
 }
 </style>
 <div id = "errors"></div>
