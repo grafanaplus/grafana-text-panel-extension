@@ -1,13 +1,5 @@
-
- //<script type="text/javascript" language="javascript" src="//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>/
-
- 
+<script type="text/javascript" language="javascript" src="//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"/>
 <script>
-var script = document.createElement( 'script' );
-script.type = 'text/javascript';
-script.src = "//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js";
-$("body").append( script );
-
 function formatTime(time){
   if(time.includes("now")){
     time = time.replace("now","now()");
@@ -153,6 +145,7 @@ function generateErrTableQuery(queryType,errorCode){
 
 //requests to DB
 function getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery){
+  console.log("err count" )
     $.get(DB_URL, { q: totalErrorCountQuery, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
@@ -171,6 +164,7 @@ function getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery){
 }
 
 function getDistinctErrorCodes(distinctErrorCodesQuery,totalErrorCount){
+  console.log("distinct" )
     $.get(DB_URL, { q: distinctErrorCodesQuery, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
@@ -193,25 +187,26 @@ function getDistinctErrorCodes(distinctErrorCodesQuery,totalErrorCount){
 }
 
 function getErrorDetails(errorCodes,totalErrorCount){
+  console.log("details" )
     generateErrorTable();
-    // for (var i = 0; i < errorCodes.length; i ++){
-    //     query = generateErrTableQuery('details',errorCodes[i])
-    //     $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
-    //         function(data, status){
-    //           if(status == 'success'){
-    //             var series = data.results[0].series;
-    //               if(typeof series == 'undefined'){
-    //                 showErrorTableMessage("Failed to retrieve error details.")
-    //               }else{
-    //                 values = series[0].values[0];
-    //                 errorCount = values[1];
-    //                 errorDetails = values[2];
-    //                 errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
-    //                 appendRow(errorDetails,errorCount,errorPercentage)
-    //               }
-    //           }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
-    //     });
-    // }
+    for (var i = 0; i < errorCodes.length; i ++){
+        query = generateErrTableQuery('details',errorCodes[i])
+        $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
+            function(data, status){
+              if(status == 'success'){
+                var series = data.results[0].series;
+                  if(typeof series == 'undefined'){
+                    showErrorTableMessage("Failed to retrieve error details.")
+                  }else{
+                    values = series[0].values[0];
+                    errorCount = values[1];
+                    errorDetails = values[2];
+                    errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
+                    appendRow(errorDetails,errorCount,errorPercentage)
+                  }
+              }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
+        });
+    }
 }
 
 function appendRow(errorDetails,errorCount,errorPercentage){
@@ -221,18 +216,18 @@ function appendRow(errorDetails,errorCount,errorPercentage){
  
 function initDataTable(table){
    console.log("init " )
-       table.DataTable()
-     // table.DataTable({
-     //        "empty": true,
-     //        "lengthMenu": [[5, 10, 20, -1], [5, 10, 20, "All"]],
-     //        "pagingType": "full_numbers",
-     //        "responsive": true
-     //  });
- 
+     
+     table.DataTable({
+            "empty": true,
+            "lengthMenu": [[5, 10, 20, -1], [5, 10, 20, "All"]],
+            "order": [[ 3, "desc" ]],
+            "pagingType": "full_numbers",
+            "responsive": true
+      });
 }
 
 function showErrorTableMessage(mess){
-    $("#errors").empty();
+    emptyErrorTable()
     message = $('<span>');
     message.attr("id","errors-table-message");
     message.text(mess)
@@ -247,19 +242,18 @@ function emptyErrorTable(){
       console.log("destroy")
       $('#error-table').DataTable().destroy();
     }
-    $("#errors").empty();
   }
+   $("#errors").empty();
 }
 
 function generateErrorTable(){
-  //emptyErrorTable();
+  emptyErrorTable();
   var table = $('<table>');
   table.attr("id","error-table");
   table.append(generateErrorTableHead());
   table.append(generateErrorTableBody());
   $('#errors').append(table);
   initDataTable(table)
-  //setTimeout(function(){initDataTable();alert("hi");}, 2000);
 }
 
 function generateErrorTableHead(){
@@ -284,35 +278,32 @@ function generateErrorTableBody(){
     return tBody;
 }
 
-function onPageRefresh (){
+function checkDataTableIsLoaded(){
+  if($.fn.DataTable){
+    console.log('inited')
     totalErrorCountQuery = generateErrTableQuery('total')
     distinctErrorCodesQuery = generateErrTableQuery('distinct')
     getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery)
+  }else{
+console.log('not inited')
+  setTimeout(function() { checkDataTableIsLoaded()}, 500);
+  }
+}
+
+function onPageRefresh (){
+    checkDataTableIsLoaded()
+    
 }
 
 DB_NAME = "perftest";
 EPOCH = "ms";
 DB_URL = "http://localhost:8086/query";
 
-// $( document ).ready(function (){ 
-// console.log('onload') ;
-// onPageRefresh ();});
-
-
-// $.getScript("//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js", function(data, textStatus, jqxhr) {
-// console.log(data); //data returned
-// console.log(textStatus); //success
-// console.log(jqxhr.status); //200
-// console.log('Load was performed.');
-// });
-
 $(document).ready(function(){
  console.log('ready') ;onPageRefresh ();
 });
 
 
-
-//window.onload = function (){ console.log('onload') ;onPageRefresh ();}
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){console.log('refresh scope');onPageRefresh ()});
 
 </script>
@@ -362,15 +353,15 @@ padding-right: 10px;
 th {
   text-align: center;
 }
-td:nth-child(1) {
+table[id="error-table"]>*>tr>td:nth-child(1){
   width: 90%;
   word-break:break-all;
 }
-td:nth-child(2) {
+table[id="error-table"]>*>tr>td:nth-child(2) {
   width: 5%;
   text-align: center;
 }
-td:nth-child(3) {
+table[id="error-table"]>*>tr>td:nth-child(3) {
   width: 5%;
   text-align: center;
 }
