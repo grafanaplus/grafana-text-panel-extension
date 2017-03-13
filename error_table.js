@@ -309,7 +309,6 @@ function checkDataTableIsLoaded(){
 
 function onPageRefresh (){
     checkDataTableIsLoaded()
-    
 }
 
 function getDatasourceDBURL(){

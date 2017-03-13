@@ -437,7 +437,7 @@ window.onload = onRefresh();
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onRefresh()});
  
 </script>
-<style type="text/css">tr:hover{background:#292929}th[data-sort]{cursor:pointer}tr.selected{color:#d8d9da;font-weight:600}table{width:100%}#summary-table-message{display:table;margin-left:auto;margin-right:auto}#hidden{display:none}#red{color:#f64a4a}#yellow{color:#e9893a}#green{color:#37ad32}
+<style type="text/css">tr:hover{background:#292929}th[data-sort]{cursor:pointer}tr.selected{background:#292929;font-weight:600}table{width:100%}#summary-table-message{display:table;margin-left:auto;margin-right:auto}#hidden{display:none}#red{color:#f64a4a}#yellow{color:#e9893a}#green{color:#37ad32}
 </style>
 
 <div id = "summary"></div>
