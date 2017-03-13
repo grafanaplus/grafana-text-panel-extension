@@ -254,6 +254,7 @@ function generateErrorTable(){
   table.append(generateErrorTableBody());
   $('#errors').append(table);
   initDataTable(table);
+  addSelectionFeature();
 }
 
 function generateErrorTableHead(){
@@ -269,6 +270,22 @@ function generateErrorTableHead(){
       tHead.append(tRow);
 
       return tHead;
+}
+function addSelectionFeature(){
+    var table = $('#error-table').DataTable();
+    $('#error-table tbody').on( 'click', 'tr', function () {
+        if ( $(this).hasClass('selected') ) {
+            $(this).removeClass('selected');
+        }
+        else {
+            table.$('tr.selected').removeClass('selected');
+            $(this).addClass('selected');
+        }
+    } );
+ 
+    $('#button').click( function () {
+        table.row('.selected').remove().draw( false );
+    } );
 }
 
 function generateErrorTableBody(){
@@ -315,6 +332,6 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
 
 </script>
 <style>
-#error-table_filter,.dataTables_length{display:inline-block}.dataTables_length{padding-bottom:20px;padding-right:23px}input[type=search]{border-radius:5px}select[name=error-table_length]{height:23px;width:65px;border-radius:5px}.paging_full_numbers>a,.paging_full_numbers>span>a{padding-right:10px}#errors-table-message{display:table;margin-left:auto;margin-right:auto}#error-table{width:100%}th{text-align:center}table[id=error-table]>*>tr>td:nth-child(1){width:90%;word-break:break-all}table[id=error-table]>*>tr>td:nth-child(2),table[id=error-table]>*>tr>td:nth-child(3){width:5%;text-align:center}
+tr.selected{background:#292929;font-weight:600}tr:hover{background:#292929}#error-table_filter,.dataTables_length{display:inline-block}.dataTables_length{padding-bottom:20px;padding-right:23px}input[type=search]{border-radius:5px}select[name=error-table_length]{height:23px;width:65px;border-radius:5px}.paging_full_numbers>a,.paging_full_numbers>span>a{padding-right:10px}#errors-table-message{display:table;margin-left:auto;margin-right:auto}#error-table{width:100%}th{text-align:center}table[id=error-table]>*>tr>td:nth-child(1){width:90%;word-break:break-all}table[id=error-table]>*>tr>td:nth-child(2),table[id=error-table]>*>tr>td:nth-child(3){width:5%;text-align:center}
 </style>
 <div id = "errors"></div>
