@@ -253,7 +253,7 @@ function generateErrorTable(){
   table.append(generateErrorTableHead());
   table.append(generateErrorTableBody());
   $('#errors').append(table);
-  initDataTable(table)
+  initDataTable(table);
 }
 
 function generateErrorTableHead(){
@@ -285,8 +285,8 @@ function checkDataTableIsLoaded(){
     distinctErrorCodesQuery = generateErrTableQuery('distinct')
     getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery)
   }else{
-console.log('not inited')
-  setTimeout(function() { checkDataTableIsLoaded()}, 500);
+    console.log('not inited')
+    setTimeout(function() { checkDataTableIsLoaded()}, 500);
   }
 }
 
@@ -303,15 +303,13 @@ function getDatasourceDBName(){
   return angular.element('grafana-app').injector().get('datasourceSrv').getAll().GatlingDB.database;
 }
 
-
 DB_NAME = getDatasourceDBName()//"perftest";
 EPOCH = "ms";
-DB_URL = getDatasourceDBURL()//"http://localhost:8086/query";
+DB_URL = getDatasourceDBURL()
 
 $(document).ready(function(){
  console.log('ready') ;onPageRefresh ();
 });
-
 
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){console.log('refresh scope');onPageRefresh ()});
 

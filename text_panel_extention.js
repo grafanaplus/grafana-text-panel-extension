@@ -342,8 +342,12 @@ function generateTable(requestNames){
  
   $('#summary').append(table);
   $('#summary-table-body tr').click(function(e) {
+    if($(this).hasClass('selected')){
+      $(this).removeClass('selected')
+    }else{
     $('#summary-table-body tr').removeClass('selected');
     $(this).addClass('selected');
+    }
   })
 }
 
@@ -407,10 +411,18 @@ function onRefresh () {
 }
 
 
-//some global vars
-DB_NAME = "perftest";
+function getDatasourceDBURL(){
+  return angular.element('grafana-app').injector().get('datasourceSrv').getAll().GatlingDB.url + '/query';
+}
+
+function getDatasourceDBName(){
+  return angular.element('grafana-app').injector().get('datasourceSrv').getAll().GatlingDB.database;
+}
+
+DB_NAME = getDatasourceDBName()//"perftest";
 EPOCH = "ms";
-DB_URL = "http://10.192.122.105:7777/query";
+DB_URL = getDatasourceDBURL()
+
 CALCULATIONS = ["request", "total", "ok", "ko", "ko_perc","rps", "min", "median", "perc75", "perc95", "perc99", "max", "average", "stddev"];
 TABLE_TIME_EPOCH = 's'; //s for seconds, any other value for milliseconds
 
@@ -425,38 +437,7 @@ window.onload = onRefresh();
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onRefresh()});
  
 </script>
-  <style type="text/css">
-    th[data-sort]{
-      cursor:pointer;
-    }
-    tr.selected{
-      color: #d8d9da;
-      font-weight: bold;
-      background: #292929;
-    }
-    table {
-       width: 100%;
-    }
-    tr:hover{
-      background:#292929;
-    }
-    #summary-table-message {
-      display: table;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    #hidden {
-      display: none;
-    }
-    #red{
-     color:#f64a4a; //red
-    }
-    #yellow{
-      color:#e9893a; // yellow
-    }
-    #green{
-      color:#37ad32; //green
-    }
+<style type="text/css">tr.selected,tr:hover{background:#292929}th[data-sort]{cursor:pointer}tr.selected{color:#d8d9da;font-weight:700}table{width:100%}#summary-table-message{display:table;margin-left:auto;margin-right:auto}#hidden{display:none}#red{color:#f64a4a}#yellow{color:#e9893a}#green{color:#37ad32}
 </style>
 
 <div id = "summary"></div>
