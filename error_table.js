@@ -84,11 +84,11 @@ function getUserCount(){
   return res;
 }
 
-function generateErrTableQuery(queryType,errorCode){
+function generateErrTableQuery(queryType,errorTypes){
   var AND  = ' AND '
   var WHERE = ' WHERE '
   var GROUP_BY = ' GROUP BY error_code'
-  var query;
+  var query = '';
   var timeFilter = getTimeFilter();
   var testType = getTestType();
   var simulation  =  getSimulationName();
@@ -131,82 +131,99 @@ function generateErrTableQuery(queryType,errorCode){
   userCounts = appendUserCountValues(userCount);
   simulation = ' simulation=\'' + simulation + '\'';
 
-  if(queryType == 'total'){
-    query = 'SELECT COUNT(error_code) FROM "errors" '  + WHERE + simulation + AND + testTypes + AND + userCounts +  timeFilter; // + GROUP_BY;
-  }else if(queryType == 'distinct'){
-    query = 'SELECT DISTINCT(error_code) AS error_code FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + timeFilter;// + GROUP_BY;
-  }else{//
-    errorCode = '"error_code" = \'' + errorCode + '\' ';
-   query = 'SELECT COUNT(error_code) AS error_code, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorCode + AND + simulation + AND + testTypes + AND + userCounts +  timeFilter;// + GROUP_BY;
-  }
+  if(queryType == 'details'){
+    for(var i = 0; i < errorTypes.length; i++){
+      errorType = '"error_type" = \'' + errorTypes[i] + '\' ';
+      query += 'SELECT COUNT(error_type) AS error_count, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorType + AND + simulation + AND + testTypes + AND + userCounts +  timeFilter;// + GROUP_BY;
+        if(i != errorTypes.length-1){
+          query = query + "; ";
+        }
+      }  
+    }else{
+      query = 'SELECT COUNT(error_type) FROM "errors" '  + WHERE + simulation + AND + testTypes + AND + userCounts +  timeFilter;
+      query +='; SELECT DISTINCT(error_type) AS error_type FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + timeFilter;
+    }
 
+  console.log(query)
   return query;
 }
-
-//requests to DB
-function getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery){
-  console.log("err count" )
-    $.get(DB_URL, { q: totalErrorCountQuery, db: DB_NAME, epoch: EPOCH},
-    function(data, status){
-          if(status == 'success'){
-              var series = data.results[0].series       
-              if(typeof series == 'undefined'){
-                 showErrorTableMessage("No errros in selected time range.")
-              }else{
-                errorCount = series[0].values[0][1];
-                console.log('err count ' + errorCount)
-                getDistinctErrorCodes(distinctErrorCodesQuery,errorCount)
-              }
-          }else{
-           showErrorTableMessage("Error occured during quering data. Check your datasource settings.")
-          }
-      });
+function formatErrorDetails(str){
+    str = str.replace(/</g, '&lt');
+    str = str.replace(/>/g, '&gt');
+    return str;
 }
+//requests to DB
+function getDistinctErrorTypes(distinctErrorTypesQuery){
+  console.log("err count, distinct" )
 
-function getDistinctErrorCodes(distinctErrorCodesQuery,totalErrorCount){
-  console.log("distinct" )
-    $.get(DB_URL, { q: distinctErrorCodesQuery, db: DB_NAME, epoch: EPOCH},
+  function getTotalErrorCount(data){
+    var series = data.results[0].series
+    var errorCount = 0;
+    if(typeof series != 'undefined'){
+      errorCount = series[0].values[0][1];
+    }
+    return errorCount
+  }
+
+  function getErrorTypes(data){
+     var series = data.results[1].series
+    if(typeof series == 'undefined'){
+        showErrorTableMessage("No error codes in errors database.")
+     }else{
+        var errorTypes  = [];
+        var values = series[0].values;
+        for(var i = 0; i < values.length; i++){
+            errorTypes.push(values[i][1]);
+        }
+    }
+      console.log('errorTypes ' + errorTypes)
+      return errorTypes        
+  }
+
+    $.get(DB_URL, { q: distinctErrorTypesQuery, db: DB_NAME, epoch: EPOCH},
     function(data, status){
           if(status == 'success'){
-            var series = data.results[0].series
-              if(typeof series == 'undefined'){
-                showErrorTableMessage("No error codes in errors database.")
-              }else{
-                var errorCodes  = [];
-                var values = series[0].values;
-                for(var i = 0; i < values.length; i++){
-                    errorCodes.push(values[i][1]);
+                var totalErrorCount = getTotalErrorCount(data)
+                if(totalErrorCount > 0){
+                  var errorTypes  = getErrorTypes(data)
+                  getErrorDetails(errorTypes,totalErrorCount)
+                }else{
+                    showErrorTableMessage("No errors in selected timeframe. Change filter parameters.")
                 }
-                console.log('errorCodes ' + errorCodes)
-                getErrorDetails(errorCodes,totalErrorCount)
-              }
           }else{
             showErrorTableMessage("Error occured during quering data. Check your datasource settings.")
           }
     });
 }
 
-function getErrorDetails(errorCodes,totalErrorCount){
-  console.log("details" )
-    generateErrorTable();
-    for (var i = 0; i < errorCodes.length; i ++){
-        query = generateErrTableQuery('details',errorCodes[i])
-        $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
-            function(data, status){
-              if(status == 'success'){
-                var series = data.results[0].series;
-                  if(typeof series == 'undefined'){
-                    showErrorTableMessage("Failed to retrieve error details.")
-                  }else{
-                    values = series[0].values[0];
-                    errorCount = values[1];
-                    errorDetails = values[2];
-                    errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
-                    appendRow(errorDetails,errorCount,errorPercentage)
-                  }
-              }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
-        });
+function getErrorDetails(errorTypes,totalErrorCount){
+    console.log("details" )
+    
+    function parseResponse(data){
+        var results = data.results;
+        console.log("results"  + results) 
+        for(var i = 0; i < results.length; i++){
+          var series = results[i].series
+          if(typeof series == 'undefined'){
+            showErrorTableMessage("Failed to retrieve error details.")
+          }else{
+            values = series[0].values[0];
+            errorCount = values[1];
+            errorDetails = formatErrorDetails(values[2]);
+            errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
+            appendRow(errorDetails,errorCount,errorPercentage)
+          }
+      }
     }
+    generateErrorTable();
+    query = generateErrTableQuery('details',errorTypes)
+    $.get(DB_URL, { q: query, db: DB_NAME, epoch: EPOCH},
+        function(data, status){
+          if(status == 'success'){
+            parseResponse(data)
+          }else{showErrorTableMessage("Error occured during quering data. Check your datasource settings.")}
+    });
+ 
 }
 
 function appendRow(errorDetails,errorCount,errorPercentage){
@@ -274,7 +291,7 @@ function generateErrorTableHead(){
 function addSelectionFeature(){
     var table = $('#error-table').DataTable();
     $('#error-table tbody').on( 'click', 'tr', function () {
-        if ( $(this).hasClass('selected') ) {
+        if ($(this).hasClass('selected')) {
             $(this).removeClass('selected');
         }
         else {
@@ -298,9 +315,8 @@ function generateErrorTableBody(){
 function checkDataTableIsLoaded(){
   if($.fn.DataTable){
     console.log('inited')
-    totalErrorCountQuery = generateErrTableQuery('total')
-    distinctErrorCodesQuery = generateErrTableQuery('distinct')
-    getErrorCount(totalErrorCountQuery,distinctErrorCodesQuery)
+    var query = generateErrTableQuery()
+    getDistinctErrorTypes(query)
   }else{
     console.log('not inited')
     setTimeout(function() { checkDataTableIsLoaded()}, 500);
@@ -331,6 +347,6 @@ angular.element('grafana-app').injector().get('$rootScope').$on('refresh',functi
 
 </script>
 <style>
-tr.selected{background:#292929;font-weight:600}tr:hover{background:#292929}#error-table_filter,.dataTables_length{display:inline-block}.dataTables_length{padding-bottom:20px;padding-right:23px}input[type=search]{border-radius:5px}select[name=error-table_length]{height:23px;width:65px;border-radius:5px}.paging_full_numbers>a,.paging_full_numbers>span>a{padding-right:10px}#errors-table-message{display:table;margin-left:auto;margin-right:auto}#error-table{width:100%}th{text-align:center}table[id=error-table]>*>tr>td:nth-child(1){width:90%;word-break:break-all}table[id=error-table]>*>tr>td:nth-child(2),table[id=error-table]>*>tr>td:nth-child(3){width:5%;text-align:center}
+ #error-table_filter,.dataTables_length{display:inline-block}.dataTables_length{padding-bottom:20px;padding-right:23px}input[type=search]{border-radius:5px}select[name=error-table_length]{height:23px;width:65px;border-radius:5px}.paging_full_numbers>a,.paging_full_numbers>span>a{padding-right:10px}#errors-table-message{display:table;margin-left:auto;margin-right:auto}#error-table{width:100%}th{text-align:center}table[id=error-table]>*>tr>td:nth-child(1){width:90%;word-break:break-all}table[id=error-table]>*>tr>td:nth-child(2),table[id=error-table]>*>tr>td:nth-child(3){width:5%;text-align:center}
 </style>
 <div id = "errors"></div>
