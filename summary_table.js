@@ -192,6 +192,7 @@ function generateQuery(queryType){
 }
 
 function parseResponse(series){
+   console.log("parse resp")
   if(series != undefined ){
     for(var i = 0; i < series.length; i++){
       var serie = series[i];
@@ -199,11 +200,13 @@ function parseResponse(series){
       var columns = serie.columns;
       var values = serie.values[0];
 
-        for(var j = 1; j < series.length; j++){
+        for(var j = 1; j < columns.length; j++){
           value = values[j]
           column = columns[j]
           if(value != null){
+             console.log("value " + value)
             var cellId = requestName + '_' + column;
+            console.log("cellid " + cellId)
             var cell = $('#' + cellId)
               if (column == 'rps'){
                 value = parseFloat(value).toFixed(ROUND_FLOAT_FACTOR)
@@ -217,6 +220,7 @@ function parseResponse(series){
               }
               cell.text(value);
           }
+
         }
     }
   }
@@ -260,9 +264,11 @@ function getAllMetrics(query){
     function(data, status){
           if(status == 'success'){
             var series = data.results[0].series
+            console.log(series)
               if(typeof series == 'undefined'){
                 showErrMessage("No datapoints in selected time range. Try to change filter parameters.")
               }else{
+                console.log("get all metrics")
                 parseResponse(series);
               }
           }else{
@@ -437,7 +443,7 @@ window.onload = onRefresh();
 angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onRefresh()});
  
 </script>
-<style type="text/css">tr:hover{background:#292929}th[data-sort]{cursor:pointer}tr.selected{background:#292929;font-weight:600}table{width:100%}#summary-table-message{display:table;margin-left:auto;margin-right:auto}#hidden{display:none}#red{color:#f64a4a}#yellow{color:#e9893a}#green{color:#37ad32}
+<style type="text/css">table[id=summary-table]>*>tr:hover{background:#292929}th[data-sort]{cursor:pointer}table[id=summary-table]>*>tr.selected{background:#292929;color:#d8d9da;font-weight:600}table[id=summary-table]{width:100%}#summary-table-message{display:table;margin-left:auto;margin-right:auto}#hidden{display:none}#red{color:#f64a4a}#yellow{color:#e9893a}#green{color:#37ad32}
 </style>
 
 <div id = "summary"></div>
