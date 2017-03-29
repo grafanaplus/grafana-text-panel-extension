@@ -84,7 +84,22 @@ function getUserCount(){
   return res;
 }
 
+function getEnvs(){
+  var envObj = getTemplateVar('env');
+  var res = [];
+  var currentOption = (envObj.current.value instanceof Array) ? envObj.current.value[0] : envObj.current.value;
+  if(currentOption == '$__all'){
+    return res;
+  }else if(envObj.current.value instanceof Array){ 
+    var values = envObj.current.value;
+    for(var i = 0; i < values.length; i++){res.push(values[i]);}
+  }else{res.push(currentOption);}
+  
+  return res;
+}
+
 function generateErrTableQuery(queryType,errorTypes){
+  console.log('generate query')
   var AND  = ' AND '
   var WHERE = ' WHERE '
   var GROUP_BY = ' GROUP BY error_code'
@@ -93,7 +108,8 @@ function generateErrTableQuery(queryType,errorTypes){
   var testType = getTestType();
   var simulation  =  getSimulationName();
   var userCount = getUserCount();
- 
+  var envs = getEnvs();
+
     function appendTestTypeValues(arr){
       var result = '';
       if (arr.length == 1){
@@ -109,42 +125,38 @@ function generateErrTableQuery(queryType,errorTypes){
       return result;
     }
 
-    function appendUserCountValues(arr){
+    function appendValues(name,arr){
       var result;
       if(arr.length ==0){
         result = '';
       }else if (arr.length == 1){
-        result = ' user_count= \'' + arr[0] + '\' ';
+        result = name +'= \'' + arr[0] + '\' ';
         result+=AND;
       }else{
-        result = ' user_count=~ /^(';
+        result = name +'=~ /^(';
         for (var i = 0; i < arr.length-1; i++){
             result += (arr[i] + '|');    
         }
-        result+=(arr[arr.length-1]+ ')/ ');
+        result+=(arr[arr.length-1]+ ')$/ ');
         result+=AND;
       }
       return result;
     }
-  
   testTypes = appendTestTypeValues(testType);
-  userCounts = appendUserCountValues(userCount);
+  environments = appendValues('env',envs);
+  userCounts = appendValues('user_count',userCount);
   simulation = ' simulation=\'' + simulation + '\'';
 
   if(queryType == 'details'){
     for(var i = 0; i < errorTypes.length; i++){
       errorType = '"error_type" = \'' + errorTypes[i] + '\' ';
-      query += 'SELECT COUNT(error_type) AS error_count, FIRST(error_details) AS error_details  FROM "errors" ' + WHERE + errorType + AND + simulation + AND + testTypes + AND + userCounts +  timeFilter;// + GROUP_BY;
-        if(i != errorTypes.length-1){
-          query = query + "; ";
-        }
+      query += 'SELECT COUNT(error_type) AS error_count, FIRST(gatling_error) AS gatling_error, FIRST(request_url) AS request_url,FIRST(request_params) AS request_params,FIRST(headers) AS headers,FIRST(http_code) AS http_code,FIRST(response) AS response,FIRST(request_name) AS request_name FROM "errors" ' + WHERE + errorType + AND + simulation + AND + testTypes + AND + userCounts + environments + timeFilter + "; ";
       }  
     }else{
-      query = 'SELECT COUNT(error_type) FROM "errors" '  + WHERE + simulation + AND + testTypes + AND + userCounts +  timeFilter;
-      query +='; SELECT DISTINCT(error_type) AS error_type FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + timeFilter;
+      query = 'SELECT COUNT(error_type) FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + environments +  timeFilter;
+      query +='; SELECT DISTINCT(error_type) AS error_type FROM "errors" ' + WHERE + simulation + AND + testTypes + AND + userCounts + environments + timeFilter;
     }
-
-  console.log(query)
+ 
   return query;
 }
 function formatErrorDetails(str){
@@ -154,8 +166,6 @@ function formatErrorDetails(str){
 }
 //requests to DB
 function getDistinctErrorTypes(distinctErrorTypesQuery){
-  console.log("err count, distinct" )
-
   function getTotalErrorCount(data){
     var series = data.results[0].series
     var errorCount = 0;
@@ -176,7 +186,6 @@ function getDistinctErrorTypes(distinctErrorTypesQuery){
             errorTypes.push(values[i][1]);
         }
     }
-      console.log('errorTypes ' + errorTypes)
       return errorTypes        
   }
 
@@ -196,21 +205,43 @@ function getDistinctErrorTypes(distinctErrorTypesQuery){
     });
 }
 
+function generateDetailBox(request_name,gatling_error,gatling_error_short,request_url,request_params,request_header,http_code,response){
+  var box = "<div class=\"accordeon\"><div class=\"accordeon-title\"><div id=\"title-wrapper\" data-title=\"" + 
+  gatling_error + "\">" + request_name  + " error: " + 
+  gatling_error_short + "</div></div><div class=\"accordeon-content\"><div class=\"separator\"><div id=\"detail-label\">Request URL:</div><div id=\"detail-data\">" + 
+  request_url+ "</div></div><div class=\"separator\"><div id=\"detail-label\">Request params:</div><div id=\"detail-data\">" + 
+  request_params + "</div></div><div class=\"separator\"><div id=\"detail-label\">Request headers:</div><div id=\"detail-data\">" + 
+  request_header + "</div></div><div class=\"separator\"><div id=\"detail-label\">HTTP Code:</div><div id=\"detail-data\">" + 
+  http_code + "</div></div><div class=\"separator\"><div id=\"detail-label\">Response:</div><div id=\"detail-data\">" + 
+  response + "</div></div></div></div>"
+
+  return box;
+}
+
 function getErrorDetails(errorTypes,totalErrorCount){
-    console.log("details" )
     
     function parseResponse(data){
         var results = data.results;
-        console.log("results"  + results) 
         for(var i = 0; i < results.length; i++){
           var series = results[i].series
           if(typeof series == 'undefined'){
             showErrorTableMessage("Failed to retrieve error details.")
           }else{
-            values = series[0].values[0];
-            errorCount = values[1];
-            errorDetails = formatErrorDetails(values[2]);
-            errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
+             
+            var values = series[0].values[0];
+            var errorCount = values[1];
+            //errorDetails = formatErrorDetails(values[2]);
+            var request_name = values[8];
+            var gatling_error = values[2];
+            var gatling_error_short  = values[2]
+            var request_url =  values[3];
+            var request_params = values[4];
+            var request_header = values[5];
+            var http_code = values[6];
+            var response = values[7];
+            var request_name = values[8];
+            var errorDetails = generateDetailBox(request_name,gatling_error,gatling_error_short,request_url,request_params,request_header,http_code,response);
+            var errorPercentage = ((100 * errorCount) / totalErrorCount).toFixed(2);
             appendRow(errorDetails,errorCount,errorPercentage)
           }
       }
@@ -227,13 +258,11 @@ function getErrorDetails(errorTypes,totalErrorCount){
 }
 
 function appendRow(errorDetails,errorCount,errorPercentage){
-  console.log("add row")
      $('#error-table').DataTable().row.add([errorDetails,errorCount,errorPercentage]).draw()
+     initAccordeon()
 }
  
 function initDataTable(table){
-   console.log("init " )
-     
      table.DataTable({
             "empty": true,
             "lengthMenu": [[5, 10, 20, -1], [5, 10, 20, "All"]],
@@ -250,14 +279,11 @@ function showErrorTableMessage(mess){
     message.text(mess)
     $("#errors").append(message);
 }
-
  
 function emptyErrorTable(){
-  console.log("empty")
   if($('#error-table').length > 0){
       if ($.fn.DataTable.isDataTable('#error-table') ) {
-      console.log("destroy")
-      $('#error-table').DataTable().destroy();
+        $('#error-table').DataTable().destroy();
     }
   }
    $("#errors").empty();
@@ -272,6 +298,23 @@ function generateErrorTable(){
   $('#errors').append(table);
   initDataTable(table);
   addSelectionFeature();
+}
+
+function initAccordeon(){
+  $('.accordeon-title').on('click',function(){
+    var title = $(this);
+    if(title.hasClass('is-opened')){
+        title.next('.accordeon-content').slideUp(function(){
+        $(this).prev('.accordeon-title').removeClass('is-opened');
+      })
+    }else{
+      var content = title.next('.accordeon-content'); 
+      if (!content.is(':visible')) {
+        content.slideDown(function(){title.addClass('is-opened')});
+      } 
+    }
+  })
+  $('#error-table_paginate a').click(function(){initAccordeon()})
 }
 
 function generateErrorTableHead(){
@@ -314,15 +357,13 @@ function generateErrorTableBody(){
 
 function checkDataTableIsLoaded(){
   if($.fn.DataTable){
-    console.log('inited')
     var query = generateErrTableQuery()
     getDistinctErrorTypes(query)
   }else{
-    console.log('not inited')
     setTimeout(function() { checkDataTableIsLoaded()}, 500);
   }
 }
-
+ 
 function onPageRefresh (){
     checkDataTableIsLoaded()
 }
@@ -335,18 +376,91 @@ function getDatasourceDBName(){
   return angular.element('grafana-app').injector().get('datasourceSrv').getAll().GatlingDB.database;
 }
 
-DB_NAME = getDatasourceDBName()//"perftest";
+DB_NAME = "perftest"; //getDatasourceDBName()//
 EPOCH = "ms";
-DB_URL = getDatasourceDBURL()
+DB_URL = "http://10.192.122.105:7777/query" //getDatasourceDBURL()
 
 $(document).ready(function(){
- console.log('ready') ;onPageRefresh ();
+onPageRefresh ();
 });
 
-angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){console.log('refresh scope');onPageRefresh ()});
+angular.element('grafana-app').injector().get('$rootScope').$on('refresh',function(){onPageRefresh ()});
 
 </script>
 <style>
  #error-table_filter,.dataTables_length{display:inline-block}.dataTables_length{padding-bottom:20px;padding-right:23px}input[type=search]{border-radius:5px}select[name=error-table_length]{height:23px;width:65px;border-radius:5px}.paging_full_numbers>a,.paging_full_numbers>span>a{padding-right:10px}#errors-table-message{display:table;margin-left:auto;margin-right:auto}#error-table{width:100%}th{text-align:center}table[id=error-table]>*>tr>td:nth-child(1){width:90%;word-break:break-all}table[id=error-table]>*>tr>td:nth-child(2),table[id=error-table]>*>tr>td:nth-child(3){width:5%;text-align:center}
+.accordeon {
+  width: 100%;
+ font-family: helvetica, sans-serif;
+  margin: -7px;
+    margin-left: 0px;}
+.accordeon-title {
+    background-color: #1f1d1d;
+    padding-top: 10px;
+    cursor: pointer;
+    padding-bottom: 10px;
+}
+.accordeon-title:before {
+  content: "+";
+  float: left;
+  font-size: 20px;
+  color: #f2f2f2;
+  border: 1px solid #f2f2f2;
+  width: 20px;
+  height: 20px;
+  line-height: 17px;
+  text-align: center;
+  margin-right: 10px;
+}
+
+.accordeon-title.is-opened:before {
+  content: "-";
+}
+ 
+table[class=error-details-table]>*>tr>td:nth-child(1){
+  width:12%;
+  border-right-color: white;
+
+}
+.accordeon-content>.separator:last-child{
+  border-bottom: 0px;
+  margin-bottom: 0px;
+}
+table[class=error-details-table]{
+    border: none;
+}
+.accordeon-content {
+  display: none;
+  padding-left: 20px;
+  padding-bottom:10px;
+} 
+#detail-label{
+  display: inline-block;
+    vertical-align: top;
+    width: 10%;
+    max-width: 135px;
+    word-break: break-word;
+    padding: 10px;
+    border-right: 1px solid #292929;
+}
+#detail-data{
+    border-left: 1px solid #292929;
+    display: inline-block;
+    word-break: break-all;
+    padding: 10px;
+    width: 90%;
+    margin-left: -1px;
+    max-height: 75px;
+    overflow: hidden;
+}
+#title-wrapper{
+  height: 20px;
+  overflow: hidden;
+}
+.separator{
+  display:block;
+  border-bottom: 1px solid #292929;
+  margin-bottom: -7px;
+}
 </style>
 <div id = "errors"></div>

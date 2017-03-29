@@ -4,44 +4,8 @@
 d=b:(d=b||a.data("sort-default")||f.ASC,a.data("sort-dir")&&(d=a.data("sort-dir")===f.ASC?f.DESC:f.ASC));if(a.data("sort-dir")!==d)return a.data("sort-dir",d),e.trigger("beforetablesort",{column:g,direction:d}),e.css("display"),setTimeout(function(){var b=[],l=e.data("sortFns")[k],h=e.children("tbody").children("tr");h.each(function(a,d){var e=c(d).children().eq(g),f=e.data("sort-value");"undefined"===typeof f&&(f=e.text(),e.data("sort-value",f));b.push([f,d])});b.sort(function(a,b){return l(a[0],
 b[0])});d!=f.ASC&&b.reverse();h=c.map(b,function(a){return a[1]});e.children("tbody").append(h);e.find("th").data("sort-dir",null).removeClass("sorting-desc sorting-asc");a.data("sort-dir",d).addClass("sorting-"+d);e.trigger("aftertablesort",{column:g,direction:d});e.css("display")},10),a}};c.fn.updateSortVal=function(b){var a=c(this);a.is("[data-sort-value]")&&a.attr("data-sort-value",b);a.data("sort-value",b);return a};c.fn.stupidtable.dir={ASC:"asc",DESC:"desc"};c.fn.stupidtable.default_sort_fns=
 {"int":function(b,a){return parseInt(b,10)-parseInt(a,10)},"float":function(b,a){return parseFloat(b)-parseFloat(a)},string:function(b,a){return b.toString().localeCompare(a.toString())},"string-ins":function(b,a){b=b.toString().toLocaleLowerCase();a=a.toString().toLocaleLowerCase();return b.localeCompare(a)}}})(jQuery);
-    
-function addTableSort(table){
-      var moveBlanks = function(a, b) {
-        if ( a < b ){
-          if (a == "")
-            return 1;
-          else
-            return -1;
-        }
-        if ( a > b ){
-          if (b == "")
-            return -1;
-          else
-            return 1;
-        }
-        return 0;
-      };
-      var moveBlanksDesc = function(a, b) {
-        if ( a < b )
-          return 1;
-        if ( a > b )
-          return -1;
-        return 0;
-      };
-      table.stupidtable({
-        "moveBlanks": moveBlanks,
-        "moveBlanksDesc": moveBlanksDesc,
-      });
-      
-      table.on("aftertablesort", function (event, data) {
-        var th = $(this).find("th");
-        th.find(".arrow").remove();
-        var dir = $.fn.stupidtable.dir;
-        var arrow = data.direction === dir.ASC ? "&uarr;" : "&darr;";
-        th.eq(data.column).append('<span class="arrow">' + arrow +'</span>');
-    
-      });    
-} 
+
+function addTableSort(n){var r=function(n,r){return r>n?""==n?1:-1:n>r?""==r?-1:1:0},a=function(n,r){return r>n?1:n>r?-1:0};n.stupidtable({moveBlanks:r,moveBlanksDesc:a}),n.on("aftertablesort",function(n,r){var a=$(this).find("th");a.find(".arrow").remove();var t=$.fn.stupidtable.dir,e=r.direction===t.ASC?"&uarr;":"&darr;";a.eq(r.column).append('<span class="arrow">'+e+"</span>")})}
 //work with time interval 
 function formatTime(time){
   if(time.includes("now")){
@@ -94,7 +58,6 @@ function getTemplateVar(varName){
        }        
   return null;
 }
-
 //get selected request status
 function getRequestStatus (){
   return getTemplateVar('req_status').current.value;
@@ -131,8 +94,21 @@ function getUserCount(){
   }else{res.push(currentOption);}
   
   return res;
-  }
+}
 
+function getEnvs(){
+  var envObj = getTemplateVar('env');
+  var res = [];
+  var currentOption = (envObj.current.value instanceof Array) ? envObj.current.value[0] : envObj.current.value;
+  if(currentOption == '$__all'){
+    return res;
+  }else if(envObj.current.value instanceof Array){ 
+    var values = envObj.current.value;
+    for(var i = 0; i < values.length; i++){res.push(values[i]);}
+  }else{res.push(currentOption);}
+  
+  return res;
+}
 //generate query 
 function generateQuery(queryType){
   var AND  = ' AND '
@@ -144,7 +120,7 @@ function generateQuery(queryType){
   var testType = getTestType();
   var simulation  =  getSimulationName();
   var userCount = getUserCount();
-
+  var envs = getEnvs();
 
     function appendTestTypeValues(arr){
       var result = ''
@@ -156,43 +132,42 @@ function generateQuery(queryType){
       }
       return result;
      }
-
-    function appendUserCountValues(arr){
+    function appendValues(name,arr){
       var result;
       if(arr.length ==0){
         result = '';
       }else if (arr.length == 1){
-        result = ' user_count= \'' + arr[0] + '\' ';
+        result = name +'= \'' + arr[0] + '\' ';
         result+=AND;
       }else{
-        result = ' user_count=~ /^(';
+        result = name +'=~ /^(';
         for (var i = 0; i < arr.length-1; i++){
             result += (arr[i] + '|');    
         }
-        result+=(arr[arr.length-1]+ ')/ ');
+        result+=(arr[arr.length-1]+ ')$/ ');
         result+=AND;
       }
       return result;
     }
-  
+
   testTypes = appendTestTypeValues(testType);
-  userCounts = appendUserCountValues(userCount);
+  environments = appendValues('env',envs);
+  userCounts = appendValues('user_count',userCount);
   simulation = ' simulation=\'' + simulation + '\'';
   requestStatus = ' status= \'' + requestStatus + '\' '
   if(queryType == 'total'){
-    query = 'SELECT SUM(count) AS "total" FROM ' + testTypes + WHERE + simulation + AND + userCounts + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
+    query = 'SELECT SUM(count) AS "total" FROM ' + testTypes + WHERE + simulation + AND + userCounts + environments + 'status= \'all\'' + AND +  timeFilter + GROUP_BY;
   }else if(queryType == 'ok'){
-    query = 'SELECT SUM(count) AS "ok" FROM ' + testTypes + WHERE + simulation + AND + userCounts +  'status= \'ok\'' + AND + timeFilter + GROUP_BY;
+    query = 'SELECT SUM(count) AS "ok" FROM ' + testTypes + WHERE + simulation + AND + userCounts + environments + 'status= \'ok\'' + AND + timeFilter + GROUP_BY;
   }else{//substitute selected request status
     query = 'SELECT MEAN(count) AS "rps", MIN(min) AS "min", MEDIAN(mean) AS "median", MEAN(mean) AS "average", MAX(max) AS "max", STDDEV(mean) AS "stddev", PERCENTILE(mean,75) AS "perc75", PERCENTILE(mean,95) AS "perc95", PERCENTILE(mean,99) AS "perc99" FROM ' + 
-      testTypes + WHERE + simulation + AND + userCounts + requestStatus + AND +  timeFilter + GROUP_BY;
+      testTypes + WHERE + simulation + AND + userCounts + environments + requestStatus + AND +  timeFilter + GROUP_BY;
   }
 
   return query;
 }
 
 function parseResponse(series){
-   console.log("parse resp")
   if(series != undefined ){
     for(var i = 0; i < series.length; i++){
       var serie = series[i];
@@ -204,9 +179,7 @@ function parseResponse(series){
           value = values[j]
           column = columns[j]
           if(value != null){
-             console.log("value " + value)
             var cellId = requestName + '_' + column;
-            console.log("cellid " + cellId)
             var cell = $('#' + cellId)
               if (column == 'rps'){
                 value = parseFloat(value).toFixed(ROUND_FLOAT_FACTOR)
@@ -220,7 +193,6 @@ function parseResponse(series){
               }
               cell.text(value);
           }
-
         }
     }
   }
@@ -264,11 +236,9 @@ function getAllMetrics(query){
     function(data, status){
           if(status == 'success'){
             var series = data.results[0].series
-            console.log(series)
               if(typeof series == 'undefined'){
                 showErrMessage("No datapoints in selected time range. Try to change filter parameters.")
               }else{
-                console.log("get all metrics")
                 parseResponse(series);
               }
           }else{
@@ -408,7 +378,6 @@ function showErrMessage(errMessage){
 
 // main function 
 function onRefresh () {
-
   queryOk = generateQuery('ok');
   queryTotal = generateQuery('total')
   queryAll = generateQuery('all');
@@ -425,15 +394,14 @@ function getDatasourceDBName(){
   return angular.element('grafana-app').injector().get('datasourceSrv').getAll().GatlingDB.database;
 }
 
-DB_NAME = getDatasourceDBName()//"perftest";
+DB_NAME = "perftest"; //getDatasourceDBName()//
 EPOCH = "ms";
-DB_URL = getDatasourceDBURL()
+DB_URL = "http://10.192.122.105:7777/query" //getDatasourceDBURL()
 
 CALCULATIONS = ["request", "total", "ok", "ko", "ko_perc","rps", "min", "median", "perc75", "perc95", "perc99", "max", "average", "stddev"];
 TABLE_TIME_EPOCH = 's'; //s for seconds, any other value for milliseconds
 
 //threshold values
-
 LOWER_RT_TRESHOLD = 2000
 HIGHER_RT_TRESHOLD = 3000
 ERROR_PERC_TRESHOLD = 1
